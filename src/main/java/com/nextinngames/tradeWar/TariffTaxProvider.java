@@ -29,60 +29,61 @@ public class TariffTaxProvider implements TaxProvider {
 
     @Override
     public @NotNull TaxRates calculateTax(@NotNull Shop shop, @NotNull QUser user) {
-        double buyerTax = 0.0;
+        double buyerTaxTotal = 0.0;
 
-        // 1. Get Shop Info
+        // 1. Get Shop and Town Context
         Town shopTown = TownyAPI.getInstance().getTown(shop.getLocation());
-        if (shopTown == null || !shopTown.hasNation()) return new TaxRates(0, 0);
+        if (shopTown == null || !shopTown.hasNation()) return new TaxRates(0.0, 0.0);
 
         Nation hostNation = shopTown.getNationOrNull();
-        // Corrected: Use getItem().getType() instead of getItemStack()
         Material shopItem = shop.getItem().getType();
 
-        // 2. Get Buyer/Seller Info
+        // 2. Get Buyer Information
         Player interactor = user.getBukkitPlayer().orElse(null);
-        if (interactor == null) return new TaxRates(0, 0);
+        if (interactor == null) return new TaxRates(0.0, 0.0);
 
         Resident interactorRes = TownyAPI.getInstance().getResident(interactor);
-        boolean isBuyingFromShop = !shop.isBuying(); // Is the player giving money to get items?
 
-        // 3. Check all rules for this nation
-        // Corrected: 'plugin' is now recognized as a class field
+        // QuickShop: !shop.isBuying() means the shop is SELLING to the player (Import)
+        boolean isImporting = !shop.isBuying();
+
+        // 3. Process matching Tariff Rules
         List<TradeDataManager.TariffRule> rules = plugin.getData().tariffRules.get(hostNation.getName());
         if (rules != null) {
             for (TradeDataManager.TariffRule rule : rules) {
-                // Check Expiry
+                // Validate Expiry
                 if (rule.expiryTime() > 0 && System.currentTimeMillis() > rule.expiryTime()) continue;
 
-                // Check Item
+                // Validate Item
                 if (rule.item() != null && rule.item() != shopItem) continue;
 
-                // Check Import/Export
-                if (rule.type().equals("import") && !isBuyingFromShop) continue;
-                if (rule.type().equals("export") && isBuyingFromShop) continue;
+                // Validate Direction (Import/Export)
+                if (rule.type().equalsIgnoreCase("import") && !isImporting) continue;
+                if (rule.type().equalsIgnoreCase("export") && isImporting) continue;
 
-                // Check Target (Town or Nation)
+                // Validate Target Town/Nation
                 if (interactorRes == null) continue;
-                if (rule.targetType().equals("nation")) {
+                if (rule.targetType().equalsIgnoreCase("nation")) {
                     if (!interactorRes.hasNation() || !interactorRes.getNationOrNull().getName().equalsIgnoreCase(rule.targetName())) continue;
-                } else if (rule.targetType().equals("town")) {
+                } else if (rule.targetType().equalsIgnoreCase("town")) {
                     if (!interactorRes.hasTown() || !interactorRes.getTownOrNull().getName().equalsIgnoreCase(rule.targetName())) continue;
                 }
 
-                // If all checks pass, calculate the tax
-                buyerTax += shop.getPrice() * (rule.percentage() / 100.0);
+                // Cumulative tax calculation
+                buyerTaxTotal += shop.getPrice() * (rule.percentage() / 100.0);
             }
         }
 
-        // 4. Deposit and Return
-        if (buyerTax > 0) {
+        // 4. Deposit Revenue and Notify Player
+        if (buyerTaxTotal > 0) {
             try {
-                hostNation.getAccount().deposit(buyerTax, "Tariff Revenue");
-            } catch (Exception ignored) {
-                // Handle economy errors if necessary
-            }
+                hostNation.getAccount().deposit(buyerTaxTotal, "Tariff Revenue from " + interactor.getName());
+                // Explicit notification to the buyer explaining the extra cost
+                interactor.sendMessage("§6[TradeWar] §7Applied §e" + String.format("%.2f", buyerTaxTotal) + "G §7in tariffs imposed by §f" + hostNation.getName());
+            } catch (Exception ignored) {}
         }
 
-        return new TaxRates(buyerTax, 0.0);
+        // Return the final tax rates for QuickShop to process the deduction
+        return new TaxRates(buyerTaxTotal, 0.0);
     }
 }
