@@ -3,13 +3,16 @@ package com.nextinngames.tradeWar;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.Nation;
 import com.palmergames.bukkit.towny.object.Resident;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Set;
 
 public class NationTradeCommand implements CommandExecutor {
     private final TradeWar plugin;
@@ -56,22 +59,40 @@ public class NationTradeCommand implements CommandExecutor {
     }
 
     private void handleTariff(Player player, Nation nation, String action, String[] args) {
-        if (action.equals("add") && args.length >= 3) {
+        if (action.equals("add")) {
+            // Check for required arguments (args[0] is 'tariff', args[1] is 'add')
+            if (args.length < 7) {
+                player.sendMessage("§cUsage: /tw tariff add <import/export> <town/nation> <name> <item> <%> [minutes]");
+                return;
+            }
+
             try {
-                double rate = Double.parseDouble(args[2]);
-                plugin.getData().tariffs.put(nation.getName(), rate);
-                player.sendMessage("§a[TW] Set nation tariff to " + rate + "%");
+                String type = args[2].toLowerCase(); // import/export
+                String targetType = args[3].toLowerCase(); // town/nation
+                String targetName = args[4];
+                Material item = args[5].equalsIgnoreCase("all") ? null : Material.valueOf(args[5].toUpperCase());
+                double percentage = Double.parseDouble(args[6]);
+
+                long expiry = 0;
+                if (args.length > 7) {
+                    expiry = System.currentTimeMillis() + (Long.parseLong(args[7]) * 60000L);
+                }
+
+                TradeDataManager.TariffRule rule = new TradeDataManager.TariffRule(
+                        type, targetType, targetName, item, percentage, expiry
+                );
+
+                plugin.getData().tariffRules.computeIfAbsent(nation.getName(), k -> new ArrayList<>()).add(rule);
+                player.sendMessage("§a[TW] Tariff added successfully!");
                 plugin.getData().saveData();
-            } catch (NumberFormatException e) {
-                player.sendMessage("§cInvalid number.");
+
+            } catch (IllegalArgumentException e) {
+                player.sendMessage("§cInvalid item or number format!");
             }
         } else if (action.equals("remove")) {
-            plugin.getData().tariffs.remove(nation.getName());
-            player.sendMessage("§a[TW] Tariff removed.");
+            plugin.getData().tariffRules.remove(nation.getName());
+            player.sendMessage("§a[TW] All tariffs cleared.");
             plugin.getData().saveData();
-        } else {
-            double current = plugin.getData().tariffs.getOrDefault(nation.getName(), 0.0);
-            player.sendMessage("§e[TW] Your current tariff: " + current + "%");
         }
     }
 
@@ -90,7 +111,13 @@ public class NationTradeCommand implements CommandExecutor {
                 plugin.getData().saveData();
             }
         } else {
-            player.sendMessage("§e[TW] Active Embargoes: " + plugin.getData().embargoes.getOrDefault(host, new HashSet<>()));
+            // Improved List Logic
+            Set<String> activeEmbargoes = plugin.getData().embargoes.getOrDefault(host, new HashSet<>());
+            if (activeEmbargoes.isEmpty()) {
+                player.sendMessage("§e[TW] Your nation has no active embargoes.");
+            } else {
+                player.sendMessage("§e[TW] Active Embargoes: §f" + String.join(", ", activeEmbargoes));
+            }
         }
     }
 
@@ -109,7 +136,13 @@ public class NationTradeCommand implements CommandExecutor {
                 plugin.getData().saveData();
             }
         } else {
-            player.sendMessage("§e[TW] Active Sanctions: " + plugin.getData().sanctions.getOrDefault(host, new HashSet<>()));
+            // Improved List Logic
+            Set<String> activeSanctions = plugin.getData().sanctions.getOrDefault(host, new HashSet<>());
+            if (activeSanctions.isEmpty()) {
+                player.sendMessage("§e[TW] Your nation has no active sanctions.");
+            } else {
+                player.sendMessage("§e[TW] Active Sanctions: §f" + String.join(", ", activeSanctions));
+            }
         }
     }
 }
