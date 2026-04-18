@@ -1,0 +1,10 @@
+name: TradeWar
+version: '1.0'
+main: com.nextinngames.tradeWar.TradeWar
+api-version: '1.21'
+depend: [Towny, QuickShop-Hikari]
+commands:
+  tw:
+    description: TradeWar main command.
+    usage: /tw <category> <action>
+    aliases: [tradewar]
