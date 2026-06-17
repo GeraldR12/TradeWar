@@ -12,7 +12,7 @@ import java.util.*;
 public class TradeDataManager {
     private final TradeWar plugin;
 
-    // Updated storage: Host Nation Name -> List of specific Tariff Rules
+    // Updated storage: Host Nation Name -> List of complex Tariff Rules
     public final Map<String, List<TariffRule>> tariffRules = new HashMap<>();
     public final Map<String, Set<String>> sanctions = new HashMap<>();
     public final Map<String, Set<String>> embargoes = new HashMap<>();
@@ -22,9 +22,9 @@ public class TradeDataManager {
     }
 
     /**
-     * Data class to represent a complex tariff policy
+     * Data record to represent a complex tariff policy
      */
-    public static record TariffRule(
+    public record TariffRule(
             String type,        // "import" or "export"
             String targetType,  // "town" or "nation"
             String targetName,  // Name of the town or nation
@@ -47,7 +47,7 @@ public class TradeDataManager {
         // Helper to create a rule from a YAML map
         public static TariffRule fromMap(Map<?, ?> map) {
             String itemStr = (String) map.get("item");
-            Material material = itemStr.equalsIgnoreCase("ALL") ? null : Material.valueOf(itemStr);
+            Material material = (itemStr == null || itemStr.equalsIgnoreCase("ALL")) ? null : Material.valueOf(itemStr);
 
             return new TariffRule(
                     (String) map.get("type"),
@@ -60,11 +60,14 @@ public class TradeDataManager {
         }
     }
 
+    /**
+     * Saves all in-memory data to data.yml
+     */
     public void saveData() {
         File file = new File(plugin.getDataFolder(), "data.yml");
         FileConfiguration config = new YamlConfiguration();
 
-        // Save complex Tariffs
+        // Save complex Tariffs by iterating through the list of rules
         for (Map.Entry<String, List<TariffRule>> entry : tariffRules.entrySet()) {
             List<Map<String, Object>> serializedRules = new ArrayList<>();
             for (TariffRule rule : entry.getValue()) {
@@ -91,6 +94,9 @@ public class TradeDataManager {
         }
     }
 
+    /**
+     * Loads all data from data.yml into memory
+     */
     public void loadData() {
         File file = new File(plugin.getDataFolder(), "data.yml");
         if (!file.exists()) return;
@@ -101,13 +107,13 @@ public class TradeDataManager {
         ConfigurationSection tariffSection = config.getConfigurationSection("tariffs");
         if (tariffSection != null) {
             for (String nation : tariffSection.getKeys(false)) {
-                List<Map<?, ?>> ruleMaps = config.getMapList("tariffs." + nation);
+                List<Map<?, ?>> ruleMaps = (List<Map<?, ?>>) config.getMapList("tariffs." + nation);
                 List<TariffRule> rules = new ArrayList<>();
                 for (Map<?, ?> map : ruleMaps) {
                     try {
                         rules.add(TariffRule.fromMap(map));
                     } catch (Exception e) {
-                        plugin.getLogger().warning("Failed to load a tariff rule for " + nation);
+                        plugin.getLogger().warning("Failed to load a tariff rule for nation: " + nation);
                     }
                 }
                 tariffRules.put(nation, rules);

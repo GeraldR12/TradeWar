@@ -5,13 +5,13 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class TradeWar extends JavaPlugin {
-
     private TradeDataManager dataManager;
     private QuickShopAPI qsApi;
 
     @Override
     public void onEnable() {
-        // 1. Hook into QuickShop-Hikari
+        saveDefaultConfig();
+
         try {
             this.qsApi = QuickShopAPI.getInstance();
             getLogger().info("Successfully hooked into QuickShop-Hikari API!");
@@ -21,18 +21,15 @@ public final class TradeWar extends JavaPlugin {
             return;
         }
 
-        // 2. Hook into Towny
         if (Bukkit.getPluginManager().getPlugin("Towny") == null) {
             getLogger().severe("Towny not found! Disabling TradeWar.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-        // 3. Initialize Data and Load from file
         this.dataManager = new TradeDataManager(this);
         this.dataManager.loadData();
 
-        // 4. Register Custom Tax Provider for Tariffs
         try {
             qsApi.getShopManager().taxManager().provider(new TariffTaxProvider(this));
             getLogger().info("TradeWar Tariff TaxProvider registered!");
@@ -40,22 +37,17 @@ public final class TradeWar extends JavaPlugin {
             getLogger().warning("Failed to register TaxProvider. Tariffs might not work.");
         }
 
-        // 5. Register the /tw command
         if (getCommand("tw") != null) {
             getCommand("tw").setExecutor(new NationTradeCommand(this));
+            // Register Tab Completer
+            getCommand("tw").setTabCompleter(new TradeTabCompleter());
         }
 
-        // 6. Register Blocker Listener (Embargoes/Sanctions)
         getServer().getPluginManager().registerEvents(new TradeListener(this), this);
-
-        getLogger().info("TradeWar for EarthPol is now active!");
+        getLogger().info("TradeWar for CartMC is now active!");
     }
 
-    public TradeDataManager getData() {
-        return dataManager;
-    }
-
-    public QuickShopAPI getQsApi() {
-        return qsApi;
-    }
+    public TradeDataManager getData() { return dataManager; }
+    public QuickShopAPI getQsApi() { return qsApi; }
+    public String getWebhookUrl() { return getConfig().getString("discord-webhook-url", ""); }
 }

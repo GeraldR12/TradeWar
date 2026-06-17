@@ -1,0 +1,3 @@
+# TradeWar Configuration Profile
+# Paste your Discord Channel incoming Webhook Integration URL here
+discord-webhook-url: "YOUR_WEBHOOK_URL_HERE"
