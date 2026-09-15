@@ -16,9 +16,13 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class NationTradeCommand implements CommandExecutor {
+    private static final long MILLIS_PER_MINUTE = 60_000L;
+    private static final double DEFAULT_MAX_TARIFF_PERCENTAGE = 100.0;
+
     private final TradeWar plugin;
 
     public NationTradeCommand(TradeWar plugin) {
@@ -27,9 +31,11 @@ public class NationTradeCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) return true;
-        Resident resident = TownyAPI.getInstance().getResident(player);
+        if (!(sender instanceof Player player)) {
+            return true;
+        }
 
+        Resident resident = TownyAPI.getInstance().getResident(player);
         if (resident == null || !resident.hasTown()) {
             player.sendMessage("§c[TW] You must be in a town to use trade policies.");
             return true;
@@ -40,8 +46,8 @@ public class NationTradeCommand implements CommandExecutor {
             return true;
         }
 
-        String category = args[0].toLowerCase();
-        String action = args[1].toLowerCase();
+        String category = args[0].toLowerCase(Locale.ROOT);
+        String action = args[1].toLowerCase(Locale.ROOT);
 
         switch (category) {
             case "tariff" -> handleTariff(player, resident, action, args);
@@ -66,97 +72,195 @@ public class NationTradeCommand implements CommandExecutor {
     }
 
     private void playGlobalAlert() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
         }
     }
 
     private void handleTariff(Player player, Resident resident, String action, String[] args) {
         Town hostTown = resident.getTownOrNull();
+        if (hostTown == null) {
+            player.sendMessage("§c[TW] Your town could not be resolved.");
+            return;
+        }
+
         if (!resident.isMayor() && !player.hasPermission("tradewar.admin")) {
             player.sendMessage("§c[TW] Only the Mayor can manage town tariffs.");
             return;
         }
 
-        if (action.equals("add")) {
-            if (args.length < 6) {
-                player.sendMessage("§cUsage: /tw tariff add <import/export> <target_town> <item/all> <%> [minutes]");
+        switch (action) {
+            case "add" -> addTariff(player, hostTown, args);
+            case "remove" -> clearTariffs(player, hostTown);
+            case "list" -> listTariffs(player, hostTown);
+            default -> player.sendMessage("§cUnknown action. Use add, remove, or list.");
+        }
+    }
+
+    private void addTariff(Player player, Town hostTown, String[] args) {
+        if (args.length != 6 && args.length != 7) {
+            player.sendMessage("§cUsage: /tw tariff add <import/export> <target_town> <item/all> <%> [minutes]");
+            return;
+        }
+
+        String type = args[2].toLowerCase(Locale.ROOT);
+        if (!type.equals("import") && !type.equals("export")) {
+            player.sendMessage("§c[TW] Type must be 'import' or 'export'.");
+            return;
+        }
+
+        Town targetTown = findTown(args[3]);
+        if (targetTown == null) {
+            player.sendMessage("§c[TW] Town '" + args[3] + "' does not exist.");
+            return;
+        }
+
+        if (targetTown.getName().equalsIgnoreCase(hostTown.getName())) {
+            player.sendMessage("§c[TW] You cannot impose a tariff on your own town.");
+            return;
+        }
+
+        Material item = null;
+        if (!args[4].equalsIgnoreCase("all")) {
+            item = Material.matchMaterial(args[4]);
+            if (item == null || !item.isItem()) {
+                player.sendMessage("§c[TW] Invalid item: " + args[4] + ".");
                 return;
-            }
-            try {
-                String type = args[2].toLowerCase();
-                if (!type.equals("import") && !type.equals("export")) {
-                    player.sendMessage("§cType must be 'import' or 'export'.");
-                    return;
-                }
-
-                String targetTownName = args[3];
-                Material item = args[4].equalsIgnoreCase("all") ? null : Material.valueOf(args[4].toUpperCase());
-                double percentage = Double.parseDouble(args[5]);
-
-                long expiry = 0;
-                String durationStr = "Permanent";
-                if (args.length > 6) {
-                    long minutes = Long.parseLong(args[6]);
-                    expiry = System.currentTimeMillis() + (minutes * 60000L);
-                    durationStr = minutes + " Minutes";
-                }
-
-                TradeDataManager.TariffRule rule = new TradeDataManager.TariffRule(
-                        type, "town", targetTownName, item, percentage, expiry
-                );
-
-                plugin.getData().tariffRules.computeIfAbsent(hostTown.getName(), k -> new ArrayList<>()).add(rule);
-                player.sendMessage("§a[TW] Tariff added successfully!");
-                plugin.getData().saveData();
-
-                String itemStr = item == null ? "ALL_GOODS" : item.name();
-                String announceMsg = "§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas imposed a §6" + percentage + "% " + type.toUpperCase() + " tariff §eon town §f" + targetTownName + " §efor §b" + itemStr + "§e!";
-                Bukkit.broadcastMessage(announceMsg);
-                playGlobalAlert();
-
-                String[][] fields = {
-                        {"Issued By", player.getName()},
-                        {"Issuing Town", hostTown.getName()},
-                        {"Target Type", "Town"},
-                        {"Target", targetTownName},
-                        {"Item", itemStr},
-                        {"Percentage", String.format("%.2f%%", percentage)},
-                        {"Duration", durationStr}
-                };
-                DiscordWebhook.sendEmbed(plugin, "New Tariff Issued", 16753920, fields);
-
-            } catch (IllegalArgumentException e) {
-                player.sendMessage("§cInvalid item name or number format!");
-            }
-        } else if (action.equals("remove")) {
-            plugin.getData().tariffRules.remove(hostTown.getName());
-            player.sendMessage("§a[TW] All tariffs cleared.");
-            plugin.getData().saveData();
-
-            String announceMsg = "§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted all trade tariffs!";
-            Bukkit.broadcastMessage(announceMsg);
-
-            String[][] fields = {{"Action By", player.getName()}, {"Town", hostTown.getName()}};
-            DiscordWebhook.sendEmbed(plugin, "Tariffs Lifted", 65280, fields);
-        } else if (action.equals("list")) {
-            List<TradeDataManager.TariffRule> rules = plugin.getData().tariffRules.getOrDefault(hostTown.getName(), new ArrayList<>());
-            if (rules.isEmpty()) {
-                player.sendMessage("§e[TW] Your town has no active tariffs.");
-                return;
-            }
-            player.sendMessage("§6--- Active Tariffs ---");
-            for (TradeDataManager.TariffRule rule : rules) {
-                String itemDisplay = rule.item() == null ? "ALL" : rule.item().name();
-                String durationDisplay = "Permanent";
-                if (rule.expiryTime() > 0) {
-                    long remainingMins = (rule.expiryTime() - System.currentTimeMillis()) / 60000L;
-                    durationDisplay = remainingMins <= 0 ? "Expired" : remainingMins + " mins left";
-                }
-                player.sendMessage(String.format("§e- [%s] On Town %s for item %s: §f%.1f%% §e(%s)",
-                        rule.type().toUpperCase(), rule.targetName(), itemDisplay, rule.percentage(), durationDisplay));
             }
         }
+
+        double percentage;
+        try {
+            percentage = Double.parseDouble(args[5]);
+        } catch (NumberFormatException e) {
+            player.sendMessage("§c[TW] Tariff percentage must be a valid number.");
+            return;
+        }
+
+        double maxPercentage = getMaxTariffPercentage();
+        if (!Double.isFinite(percentage) || percentage <= 0.0 || percentage > maxPercentage) {
+            player.sendMessage("§c[TW] Tariff percentage must be greater than 0 and no more than " + formatNumber(maxPercentage) + "%.");
+            return;
+        }
+
+        long expiry = 0L;
+        String duration = "Permanent";
+        if (args.length == 7) {
+            long minutes;
+            try {
+                minutes = Long.parseLong(args[6]);
+            } catch (NumberFormatException e) {
+                player.sendMessage("§c[TW] Duration must be a valid number of minutes.");
+                return;
+            }
+
+            if (minutes <= 0L) {
+                player.sendMessage("§c[TW] Duration must be greater than 0 minutes.");
+                return;
+            }
+
+            try {
+                expiry = Math.addExact(System.currentTimeMillis(), Math.multiplyExact(minutes, MILLIS_PER_MINUTE));
+            } catch (ArithmeticException e) {
+                player.sendMessage("§c[TW] Duration is too large.");
+                return;
+            }
+            duration = minutes + (minutes == 1 ? " Minute" : " Minutes");
+        }
+
+        String targetTownName = targetTown.getName();
+        TradeDataManager.TariffRule rule = new TradeDataManager.TariffRule(
+                type,
+                "town",
+                targetTownName,
+                item,
+                percentage,
+                expiry
+        );
+
+        plugin.getData().tariffRules.computeIfAbsent(hostTown.getName(), ignored -> new ArrayList<>()).add(rule);
+        plugin.getData().saveData();
+        player.sendMessage("§a[TW] Tariff added successfully!");
+
+        String itemName = item == null ? "ALL_GOODS" : item.name();
+        String announceMsg = "§l[TradeWar] §eThe Town of §f" + hostTown.getName()
+                + " §ehas imposed a §6" + formatNumber(percentage) + "% " + type.toUpperCase(Locale.ROOT)
+                + " tariff §eon town §f" + targetTownName + " §efor §b" + itemName + "§e!";
+        Bukkit.broadcastMessage(announceMsg);
+        playGlobalAlert();
+
+        String[][] fields = {
+                {"Issued By", player.getName()},
+                {"Issuing Town", hostTown.getName()},
+                {"Target Type", "Town"},
+                {"Target", targetTownName},
+                {"Item", itemName},
+                {"Percentage", String.format(Locale.ROOT, "%.2f%%", percentage)},
+                {"Duration", duration}
+        };
+        DiscordWebhook.sendEmbed(plugin, "New Tariff Issued", 16753920, fields);
+    }
+
+    private void clearTariffs(Player player, Town hostTown) {
+        plugin.getData().tariffRules.remove(hostTown.getName());
+        plugin.getData().saveData();
+        player.sendMessage("§a[TW] All tariffs cleared.");
+
+        Bukkit.broadcastMessage("§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted all trade tariffs!");
+        String[][] fields = {{"Action By", player.getName()}, {"Town", hostTown.getName()}};
+        DiscordWebhook.sendEmbed(plugin, "Tariffs Lifted", 65280, fields);
+    }
+
+    private void listTariffs(Player player, Town hostTown) {
+        List<TradeDataManager.TariffRule> rules = plugin.getData().tariffRules.getOrDefault(hostTown.getName(), List.of());
+        if (rules.isEmpty()) {
+            player.sendMessage("§e[TW] Your town has no active tariffs.");
+            return;
+        }
+
+        player.sendMessage("§6--- Active Tariffs ---");
+        for (TradeDataManager.TariffRule rule : rules) {
+            String itemDisplay = rule.item() == null ? "ALL" : rule.item().name();
+            String durationDisplay = "Permanent";
+            if (rule.expiryTime() > 0) {
+                long remainingMillis = rule.expiryTime() - System.currentTimeMillis();
+                if (remainingMillis <= 0) {
+                    durationDisplay = "Expired";
+                } else {
+                    long remainingMinutes = Math.max(1L, (remainingMillis + MILLIS_PER_MINUTE - 1L) / MILLIS_PER_MINUTE);
+                    durationDisplay = remainingMinutes + (remainingMinutes == 1 ? " min left" : " mins left");
+                }
+            }
+
+            player.sendMessage(String.format(
+                    Locale.ROOT,
+                    "§e- [%s] On Town %s for item %s: §f%.1f%% §e(%s)",
+                    rule.type().toUpperCase(Locale.ROOT),
+                    rule.targetName(),
+                    itemDisplay,
+                    rule.percentage(),
+                    durationDisplay
+            ));
+        }
+    }
+
+    private Town findTown(String name) {
+        return TownyAPI.getInstance().getTowns().stream()
+                .filter(town -> town.getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private double getMaxTariffPercentage() {
+        double configured = plugin.getConfig().getDouble("tariffs.max-percentage", DEFAULT_MAX_TARIFF_PERCENTAGE);
+        return Double.isFinite(configured) && configured > 0.0 ? configured : DEFAULT_MAX_TARIFF_PERCENTAGE;
+    }
+
+    private String formatNumber(double value) {
+        if (value == Math.rint(value)) {
+            return Long.toString((long) value);
+        }
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     private void handleEmbargo(Player player, Resident resident, String action, String[] args) {
