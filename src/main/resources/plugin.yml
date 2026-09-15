@@ -8,3 +8,7 @@ commands:
     description: TradeWar main command.
     usage: /tw <category> <action>
     aliases: [tradewar]
+permissions:
+  tradewar.admin:
+    description: Allows bypassing mayor and king checks for TradeWar policy management.
+    default: op
