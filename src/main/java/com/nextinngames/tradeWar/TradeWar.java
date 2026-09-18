@@ -1,12 +1,16 @@
 package com.nextinngames.tradeWar;
 
 import com.ghostchu.quickshop.api.QuickShopAPI;
+import com.nextinngames.tradeWar.bluemap.BlueMapIntegration;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.Optional;
 
 public final class TradeWar extends JavaPlugin {
     private TradeDataManager dataManager;
     private QuickShopAPI qsApi;
+    private BlueMapIntegration blueMapIntegration;
 
     @Override
     public void onEnable() {
@@ -39,15 +43,25 @@ public final class TradeWar extends JavaPlugin {
 
         if (getCommand("tw") != null) {
             getCommand("tw").setExecutor(new NationTradeCommand(this));
-            // Register Tab Completer
             getCommand("tw").setTabCompleter(new TradeTabCompleter());
         }
 
         getServer().getPluginManager().registerEvents(new TradeListener(this), this);
+
+        this.blueMapIntegration = BlueMapIntegration.tryInitialize(this).orElse(null);
+
         getLogger().info("TradeWar for CartMC is now active!");
+    }
+
+    @Override
+    public void onDisable() {
+        if (blueMapIntegration != null) {
+            blueMapIntegration.shutdown();
+        }
     }
 
     public TradeDataManager getData() { return dataManager; }
     public QuickShopAPI getQsApi() { return qsApi; }
     public String getWebhookUrl() { return getConfig().getString("discord-webhook-url", ""); }
+    public Optional<BlueMapIntegration> getBlueMapIntegration() { return Optional.ofNullable(blueMapIntegration); }
 }

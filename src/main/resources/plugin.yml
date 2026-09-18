@@ -3,6 +3,7 @@ version: '1.2'
 main: com.nextinngames.tradeWar.TradeWar
 api-version: '1.21'
 depend: [Towny, QuickShop-Hikari]
+softdepend: [BlueMap]
 commands:
   tw:
     description: TradeWar main command.

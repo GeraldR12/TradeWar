@@ -2,3 +2,10 @@ discord-webhook-url: "YOUR_WEBHOOK_URL_HERE"
 
 tariffs:
   max-percentage: 100.0
+
+bluemap:
+  enabled: true
+  marker-set-label: "Trade Wars"
+  show-tariffs: true
+  show-sanctions: true
+  show-embargoes: true
