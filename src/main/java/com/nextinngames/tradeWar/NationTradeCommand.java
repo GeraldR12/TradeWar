@@ -18,6 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class NationTradeCommand implements CommandExecutor {
     private static final long MILLIS_PER_MINUTE = 60_000L;
@@ -180,6 +181,7 @@ public class NationTradeCommand implements CommandExecutor {
 
         plugin.getData().tariffRules.computeIfAbsent(hostTown.getName(), ignored -> new ArrayList<>()).add(rule);
         plugin.getData().saveData();
+        plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownChanged(targetTownName));
         player.sendMessage("§a[TW] Tariff added successfully!");
 
         String itemName = item == null ? "ALL_GOODS" : item.name();
@@ -204,6 +206,7 @@ public class NationTradeCommand implements CommandExecutor {
     private void clearTariffs(Player player, Town hostTown) {
         plugin.getData().tariffRules.remove(hostTown.getName());
         plugin.getData().saveData();
+        plugin.getBlueMapIntegration().ifPresent(bm -> bm.fullRefresh());
         player.sendMessage("§a[TW] All tariffs cleared.");
 
         Bukkit.broadcastMessage("§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted all trade tariffs!");
@@ -251,6 +254,22 @@ public class NationTradeCommand implements CommandExecutor {
                 .orElse(null);
     }
 
+    private void notifyTownChanged(String rawTownName) {
+        Town town = TownyAPI.getInstance().getTown(rawTownName);
+        if (town != null) {
+            plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownChanged(town.getName()));
+        }
+    }
+
+    private void notifyNationChanged(String rawNationName) {
+        Nation nation = TownyAPI.getInstance().getNation(rawNationName);
+        if (nation == null) {
+            return;
+        }
+        Set<String> townNames = nation.getTowns().stream().map(Town::getName).collect(Collectors.toSet());
+        plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownsChanged(townNames));
+    }
+
     private double getMaxTariffPercentage() {
         double configured = plugin.getConfig().getDouble("tariffs.max-percentage", DEFAULT_MAX_TARIFF_PERCENTAGE);
         return Double.isFinite(configured) && configured > 0.0 ? configured : DEFAULT_MAX_TARIFF_PERCENTAGE;
@@ -277,6 +296,7 @@ public class NationTradeCommand implements CommandExecutor {
                 plugin.getData().embargoes.computeIfAbsent(host, k -> new HashSet<>()).add(target);
                 player.sendMessage("§a[TW] Embargoed nation: " + target);
                 plugin.getData().saveData();
+                notifyNationChanged(target);
 
                 String announceMsg = "§l[TradeWar] §lEMBARGO! §eThe Nation of §f" + host + " §ehas declared a total trade embargo against the Nation of §f" + target + "§e!";
                 Bukkit.broadcastMessage(announceMsg);
@@ -291,6 +311,7 @@ public class NationTradeCommand implements CommandExecutor {
                     plugin.getData().embargoes.get(host).remove(target);
                     player.sendMessage("§a[TW] Lifted embargo on " + target);
                     plugin.getData().saveData();
+                    notifyNationChanged(target);
 
                     String announceMsg = "§l[TradeWar] §eThe Nation of §f" + host + " §ehas lifted the trade embargo against the Nation of §f" + target + "§e!";
                     Bukkit.broadcastMessage(announceMsg);
@@ -328,6 +349,7 @@ public class NationTradeCommand implements CommandExecutor {
                 plugin.getData().sanctions.computeIfAbsent(host, k -> new HashSet<>()).add(target);
                 player.sendMessage("§a[TW] Sanctioned town: " + target);
                 plugin.getData().saveData();
+                notifyTownChanged(target);
 
                 String announceMsg = "§l[TradeWar] §lSANCTION! §eThe Town of §f" + host + " §ehas officially sanctioned town §f" + target + "§e from doing business!";
                 Bukkit.broadcastMessage(announceMsg);
@@ -342,6 +364,7 @@ public class NationTradeCommand implements CommandExecutor {
                     plugin.getData().sanctions.get(host).remove(target);
                     player.sendMessage("§a[TW] Removed sanction on " + target);
                     plugin.getData().saveData();
+                    notifyTownChanged(target);
 
                     String announceMsg = "§l[TradeWar] §eThe Town of §f" + host + " §ehas lifted sanctions on town §f" + target + "§e!";
                     Bukkit.broadcastMessage(announceMsg);
