@@ -43,7 +43,7 @@ public final class TradeWar extends JavaPlugin {
 
         if (getCommand("tw") != null) {
             getCommand("tw").setExecutor(new NationTradeCommand(this));
-            getCommand("tw").setTabCompleter(new TradeTabCompleter());
+            getCommand("tw").setTabCompleter(new TradeTabCompleter(this));
         }
 
         getServer().getPluginManager().registerEvents(new TradeListener(this), this);

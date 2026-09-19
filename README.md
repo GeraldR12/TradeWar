@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Tariffs** — a town can impose an import or export tariff on another town, targeting a specific item or all goods, for a fixed duration or permanently. The tariff is applied as a surcharge on matching QuickShop-Hikari purchases and deposited straight into the issuing town's bank.
+- **Tariffs** — a town can impose an import or export tariff on another town, targeting a specific item or all goods, for a fixed duration or permanently. An import tariff is an extra charge collected from the trading resident; an export tariff is collected out of what that resident was paid for the goods. Either way the money is transferred from the taxed resident into the issuing town's bank, never created.
 - **Sanctions** — a town can block another town's residents from trading in its shops entirely.
 - **Embargoes** — a nation can cut off all trade with a rival nation.
 - **Live feedback** — every policy change is broadcast server-wide with a sound cue, and optionally mirrored to a Discord channel via webhook.
@@ -29,7 +29,7 @@
 
 ```
 /tw tariff add <import|export> <target_town> <item|all> <percent> [minutes]
-/tw tariff remove
+/tw tariff remove [target_town]
 /tw tariff list
 
 /tw sanction add <target_town>
@@ -101,7 +101,7 @@ IRON_INGOT
 Expires: 2h 14m
 ```
 
-Markers update on `/tw tariff add`, `/tw sanction add/remove`, and `/tw embargo add/remove` without a restart (only the affected town(s) are touched); `/tw tariff remove` and BlueMap/TradeWar (re)load trigger a full rebuild. Expired tariffs disappear on their own — a single self-rescheduling timer (no polling) sweeps the map exactly when the next tariff is due to expire. TradeWar's territory marker is placed at the town's spawn point (`Town#getSpawnOrNull()`); it does not draw territory outlines and does not touch BlueMap-Towny's own markers — the two coexist as independent `MarkerSet`s.
+Markers update on `/tw tariff add`, `/tw tariff remove <target_town>`, `/tw sanction add/remove`, and `/tw embargo add/remove` without a restart (only the affected town(s) are touched); `/tw tariff remove` with no target (clears everything) and BlueMap/TradeWar (re)load trigger a full rebuild. Expired tariffs disappear on their own — a single self-rescheduling timer (no polling) sweeps the map exactly when the next tariff is due to expire. TradeWar's territory marker is placed at the town's spawn point (`Town#getSpawnOrNull()`); it does not draw territory outlines and does not touch BlueMap-Towny's own markers — the two coexist as independent `MarkerSet`s.
 
 If BlueMap isn't installed, TradeWar logs one line (`BlueMap not found - map integration disabled.`) and runs exactly as before.
 

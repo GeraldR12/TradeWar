@@ -62,7 +62,7 @@ public class NationTradeCommand implements CommandExecutor {
     private void sendHelpMenu(Player player) {
         player.sendMessage("§6--- TradeWar Help ---");
         player.sendMessage("§e/tw tariff add <import/export> <target_town> <item/all> <%> [minutes]");
-        player.sendMessage("§e/tw tariff remove");
+        player.sendMessage("§e/tw tariff remove [target_town]");
         player.sendMessage("§e/tw tariff list");
         player.sendMessage("§e/tw sanction add <target_town>");
         player.sendMessage("§e/tw sanction remove <target_town>");
@@ -92,7 +92,7 @@ public class NationTradeCommand implements CommandExecutor {
 
         switch (action) {
             case "add" -> addTariff(player, hostTown, args);
-            case "remove" -> clearTariffs(player, hostTown);
+            case "remove" -> clearTariffs(player, hostTown, args);
             case "list" -> listTariffs(player, hostTown);
             default -> player.sendMessage("§cUnknown action. Use add, remove, or list.");
         }
@@ -203,7 +203,12 @@ public class NationTradeCommand implements CommandExecutor {
         DiscordWebhook.sendEmbed(plugin, "New Tariff Issued", 16753920, fields);
     }
 
-    private void clearTariffs(Player player, Town hostTown) {
+    private void clearTariffs(Player player, Town hostTown, String[] args) {
+        if (args.length >= 3) {
+            clearTariffsForTarget(player, hostTown, args[2]);
+            return;
+        }
+
         plugin.getData().tariffRules.remove(hostTown.getName());
         plugin.getData().saveData();
         plugin.getBlueMapIntegration().ifPresent(bm -> bm.fullRefresh());
@@ -211,6 +216,26 @@ public class NationTradeCommand implements CommandExecutor {
 
         Bukkit.broadcastMessage("§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted all trade tariffs!");
         String[][] fields = {{"Action By", player.getName()}, {"Town", hostTown.getName()}};
+        DiscordWebhook.sendEmbed(plugin, "Tariffs Lifted", 65280, fields);
+    }
+
+    private void clearTariffsForTarget(Player player, Town hostTown, String targetArg) {
+        List<TradeDataManager.TariffRule> rules = plugin.getData().tariffRules.get(hostTown.getName());
+        if (rules == null || rules.stream().noneMatch(r -> r.targetName().equalsIgnoreCase(targetArg))) {
+            player.sendMessage("§c[TW] No active tariff targets " + targetArg + ".");
+            return;
+        }
+
+        rules.removeIf(r -> r.targetName().equalsIgnoreCase(targetArg));
+        if (rules.isEmpty()) {
+            plugin.getData().tariffRules.remove(hostTown.getName());
+        }
+        plugin.getData().saveData();
+        plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownChanged(targetArg));
+        player.sendMessage("§a[TW] Tariffs on " + targetArg + " cleared.");
+
+        Bukkit.broadcastMessage("§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted trade tariffs on town §f" + targetArg + "§e!");
+        String[][] fields = {{"Action By", player.getName()}, {"Town", hostTown.getName()}, {"Target", targetArg}};
         DiscordWebhook.sendEmbed(plugin, "Tariffs Lifted", 65280, fields);
     }
 
