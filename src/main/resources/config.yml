@@ -9,3 +9,10 @@ bluemap:
   show-tariffs: true
   show-sanctions: true
   show-embargoes: true
+
+pl3xmap:
+  enabled: true
+  layer-label: "Trade Wars"
+  show-tariffs: true
+  show-sanctions: true
+  show-embargoes: true

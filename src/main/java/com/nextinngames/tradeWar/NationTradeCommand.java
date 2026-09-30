@@ -182,6 +182,7 @@ public class NationTradeCommand implements CommandExecutor {
         plugin.getData().tariffRules.computeIfAbsent(hostTown.getName(), ignored -> new ArrayList<>()).add(rule);
         plugin.getData().saveData();
         plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownChanged(targetTownName));
+        plugin.getPl3xMapIntegration().ifPresent(pm -> pm.onTownChanged(targetTownName));
         player.sendMessage("§a[TW] Tariff added successfully!");
 
         String itemName = item == null ? "ALL_GOODS" : item.name();
@@ -207,6 +208,7 @@ public class NationTradeCommand implements CommandExecutor {
         plugin.getData().tariffRules.remove(hostTown.getName());
         plugin.getData().saveData();
         plugin.getBlueMapIntegration().ifPresent(bm -> bm.fullRefresh());
+        plugin.getPl3xMapIntegration().ifPresent(pm -> pm.fullRefresh());
         player.sendMessage("§a[TW] All tariffs cleared.");
 
         Bukkit.broadcastMessage("§l[TradeWar] §eThe Town of §f" + hostTown.getName() + " §ehas lifted all trade tariffs!");
@@ -258,6 +260,7 @@ public class NationTradeCommand implements CommandExecutor {
         Town town = TownyAPI.getInstance().getTown(rawTownName);
         if (town != null) {
             plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownChanged(town.getName()));
+            plugin.getPl3xMapIntegration().ifPresent(pm -> pm.onTownChanged(town.getName()));
         }
     }
 
@@ -268,6 +271,7 @@ public class NationTradeCommand implements CommandExecutor {
         }
         Set<String> townNames = nation.getTowns().stream().map(Town::getName).collect(Collectors.toSet());
         plugin.getBlueMapIntegration().ifPresent(bm -> bm.onTownsChanged(townNames));
+        plugin.getPl3xMapIntegration().ifPresent(pm -> pm.onTownsChanged(townNames));
     }
 
     private double getMaxTariffPercentage() {
