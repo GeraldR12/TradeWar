@@ -13,6 +13,7 @@
 - **Embargoes** — a nation can cut off all trade with a rival nation.
 - **Live feedback** — every policy change is broadcast server-wide with a sound cue, and optionally mirrored to a Discord channel via webhook.
 - **BlueMap layer (optional)** — when [BlueMap](https://bluemap.bluecolored.de/) is installed, TradeWar adds its own `Trade Wars` marker layer showing which towns are currently tariffed, sanctioned, or embargoed, and by whom. Fully optional: TradeWar works exactly the same without BlueMap installed.
+- **Pl3xMap layer (optional)** — the same `Trade Wars` layer for [Pl3xMap](https://modrinth.com/plugin/pl3xmap), with the same popups. Also fully optional, and it can run alongside BlueMap.
 
 ## Requirements
 
@@ -24,6 +25,7 @@
 | QuickShop-Hikari | 6.2.0.11+ |
 | Vault | any recent build (economy provider) |
 | BlueMap | optional, tested against `5.16-paper` (BlueMapAPI 2.7.7) |
+| Pl3xMap | optional, built against `1.21.11-544` |
 
 ## Commands
 
@@ -78,6 +80,19 @@ bluemap:
 - `bluemap.marker-set-label` — display name of the marker group/layer toggle shown in the BlueMap UI.
 - `bluemap.show-tariffs` / `show-sanctions` / `show-embargoes` — hide a restriction type from the map without disabling the policy itself.
 
+```yaml
+pl3xmap:
+  enabled: true
+  layer-label: "Trade Wars"
+  show-tariffs: true
+  show-sanctions: true
+  show-embargoes: true
+```
+
+- `pl3xmap.enabled` — master switch for the Pl3xMap layer. No effect if Pl3xMap isn't installed either way.
+- `pl3xmap.layer-label` — display name of the layer toggle shown in the Pl3xMap UI.
+- `pl3xmap.show-tariffs` / `show-sanctions` / `show-embargoes` — same as the BlueMap options, configured separately so each map can show different restriction types.
+
 ### BlueMap integration
 
 If [BlueMap](https://bluemap.bluecolored.de/) is present (`softdepend`, never required), TradeWar registers its own `Trade Wars` `MarkerSet` and places one marker per town that currently has an active restriction — towns with none get no marker at all. Sanctions/embargoes target names are resolved against Towny case-insensitively; a policy referencing a town/nation that no longer exists is skipped and logged (`[BlueMap] ... not found (skipped)`), never shown as a marker. Nation embargoes are expanded to every member town at read time — the stored policy stays `Nation -> Nation`, nothing extra is persisted.
@@ -105,6 +120,22 @@ Markers update on `/tw tariff add`, `/tw sanction add/remove`, and `/tw embargo 
 
 If BlueMap isn't installed, TradeWar logs one line (`BlueMap not found - map integration disabled.`) and runs exactly as before.
 
+### Pl3xMap integration
+
+If [Pl3xMap](https://modrinth.com/plugin/pl3xmap) is present (`softdepend`, never required), TradeWar registers its own `Trade Wars` layer (a toggleable `SimpleLayer`) in every Pl3xMap world. It works the same way as the BlueMap integration: it uses the same restriction data, the same popup content, and the same update triggers, including the expiry timer.
+
+Each restricted town gets a circle marker with a 24-block radius, centered on the town spawn and colored by its worst restriction:
+
+| Severity | Color |
+|---|---|
+| Embargo | dark red |
+| Sanction | red |
+| Tariff | orange |
+
+Hovering over a marker shows the town name; clicking it opens the same popup as on BlueMap (see above). If Pl3xMap reloads a world, the layer is rebuilt automatically. Towns whose spawn is in a world Pl3xMap doesn't render are skipped and logged (`[Pl3xMap] World not rendered by Pl3xMap, marker skipped for town: ...`).
+
+BlueMap and Pl3xMap can both be installed at once; each gets its own layer and they don't affect each other. If Pl3xMap isn't installed, TradeWar logs `Pl3xMap not found - map integration disabled.` and runs exactly as before.
+
 ## Building from source
 
 ```bash
@@ -115,4 +146,4 @@ Produces a shaded, drop-in jar at `target/TradeWar-<version>.jar`.
 
 ## Project status
 
-Tariff command input is hardened against invalid targets, materials, percentages, and durations. QuickShop tax accounting reconciliation and persistence hardening are tracked as ongoing work, not yet part of this release. The optional BlueMap layer is implemented and unit-tested locally; in-game/BlueMap-rendered verification on a live server is still pending.
+Tariff command input is hardened against invalid targets, materials, percentages, and durations. QuickShop tax accounting reconciliation and persistence hardening are tracked as ongoing work, not yet part of this release. The optional BlueMap layer is implemented and unit-tested locally; in-game/BlueMap-rendered verification on a live server is still pending. The optional Pl3xMap layer shares the same tested aggregation and formatting code; the Pl3xMap-specific layer and marker code has no tests of its own.
