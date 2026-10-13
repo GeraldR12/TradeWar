@@ -183,9 +183,9 @@ public final class Pl3xMapMarkerManager implements EventListener {
                 townNames,
                 nationNames,
                 townsByNation,
-                showTariffs ? data.tariffRules : Map.of(),
-                showSanctions ? data.sanctions : Map.of(),
-                showEmbargoes ? data.embargoes : Map.of(),
+                data.nationPolicies,
+                data.townPolicies,
+                new TradeStatusAggregator.Filter(showTariffs, showSanctions, showEmbargoes),
                 System.currentTimeMillis(),
                 msg -> plugin.getLogger().warning("[Pl3xMap] " + msg)
         );
