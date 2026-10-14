@@ -43,12 +43,11 @@ public final class TradeMarkerFormatter {
 
     private static String section(TradeRestriction r, long now) {
         return switch (r.type()) {
-            case EMBARGO -> "⛔ <b>NATION EMBARGO</b><br/>Applied by: " + escape(r.appliedBy()) + "<br/><br/>";
+            case EMBARGO -> "⛔ <b>EMBARGO</b><br/>Applied by: " + escape(r.appliedBy()) + "<br/><br/>";
             case SANCTION -> "🔴 <b>SANCTION</b><br/>Applied by: " + escape(r.appliedBy()) + "<br/><br/>";
-            case TARIFF -> "🟠 <b>" + r.direction().toUpperCase(Locale.ROOT) + " TARIFF</b><br/>"
+            case TARIFF -> "🟠 <b>TARIFF</b><br/>"
                     + "Applied by: " + escape(r.appliedBy()) + "<br/>"
-                    + formatPercentage(r.percentage()) + "%<br/>"
-                    + escape(r.item()) + "<br/>"
+                    + formatPercentage(r.percentage()) + "% on all goods<br/>"
                     + "Expires: " + expiryLabel(r.expiresAt(), now) + "<br/><br/>";
         };
     }

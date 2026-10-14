@@ -27,7 +27,7 @@ class TradeMarkerFormatterTest {
         TradeStatus status = new TradeStatus("Havana", List.of(
                 TradeRestriction.sanction("Brasilia"),
                 TradeRestriction.embargo("UnitedKingdom"),
-                TradeRestriction.tariff("NewYork", "import", "IRON_INGOT", 15.0, NOW + 60_000)
+                TradeRestriction.tariff("NewYork", 15.0, NOW + 60_000)
         ));
 
         String html = TradeMarkerFormatter.detailHtml(status, NOW);
@@ -35,24 +35,23 @@ class TradeMarkerFormatterTest {
         assertTrue(html.contains("Restrictions: 3"));
         assertTrue(html.contains("SANCTION"));
         assertTrue(html.contains("Brasilia"));
-        assertTrue(html.contains("NATION EMBARGO"));
+        assertTrue(html.contains("EMBARGO"));
         assertTrue(html.contains("UnitedKingdom"));
-        assertTrue(html.contains("IMPORT TARIFF"));
-        assertTrue(html.contains("IRON_INGOT"));
-        assertTrue(html.contains("15"));
+        assertTrue(html.contains("TARIFF"));
+        assertTrue(html.contains("15% on all goods"));
     }
 
     @Test
     void permanentTariffShowsPermanentExpiry() {
         TradeStatus status = new TradeStatus("Havana", List.of(
-                TradeRestriction.tariff("NewYork", "export", "ALL", 10.0, 0)));
+                TradeRestriction.tariff("NewYork", 10.0, 0)));
         assertTrue(TradeMarkerFormatter.detailHtml(status, NOW).contains("Permanent"));
     }
 
     @Test
     void expiredTariffShowsExpiredLabel() {
         TradeStatus status = new TradeStatus("Havana", List.of(
-                TradeRestriction.tariff("NewYork", "export", "ALL", 10.0, NOW - 1)));
+                TradeRestriction.tariff("NewYork", 10.0, NOW - 1)));
         assertTrue(TradeMarkerFormatter.detailHtml(status, NOW).contains("Expired"));
     }
 
