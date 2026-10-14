@@ -11,16 +11,22 @@ import com.palmergames.bukkit.towny.utils.TownyComponents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Adds [Trade Tariffs] / [Trade Sanctions] / [Trade Embargoes] hover entries to the /town and /nation screens,
  * styled like Towny's own [Residents] entry. Only non-empty entries are shown.
  * <p>
  * A town in a nation shows its nation's policies, since those are the ones that apply to its shops.
+ * <p>
+ * Entries are inserted inline: on /town after [Plots] (and any entries other plugins such as Quarters put right
+ * after it), on /nation after [Towns]. If the anchor is missing they are appended on a new line instead.
  */
 public class StatusScreenListener implements Listener {
     private static final int MAX_HOVER_ENTRIES = 20;
@@ -31,21 +37,22 @@ public class StatusScreenListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    // HIGHEST so other plugins' entries next to [Plots] (e.g. Quarters) are already on the screen.
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onTownScreen(TownStatusScreenEvent event) {
         Town town = event.getTown();
         Nation nation = town.getNationOrNull();
         PolicyHolder holder = PolicyHolder.governing(town);
         String setBy = nation == null ? null : "Set by the Nation of " + nation.getName();
-        addPolicies(event.getStatusScreen(), holder, setBy);
+        addPolicies(event.getStatusScreen(), holder, setBy, "plots", true);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onNationScreen(NationStatusScreenEvent event) {
-        addPolicies(event.getStatusScreen(), new PolicyHolder(PolicyScope.NATION, event.getNation().getName()), null);
+        addPolicies(event.getStatusScreen(), new PolicyHolder(PolicyScope.NATION, event.getNation().getName()), null, "towns", false);
     }
 
-    private void addPolicies(StatusScreen screen, PolicyHolder holder, String setBy) {
+    private void addPolicies(StatusScreen screen, PolicyHolder holder, String setBy, String anchor, boolean skipForeign) {
         PolicySet policies = plugin.getData().get(holder);
         if (policies == null) {
             return;
@@ -68,13 +75,44 @@ public class StatusScreenListener implements Listener {
             return;
         }
 
-        screen.addComponentOf("tradewar_newline", Component.newline());
-        addEntry(screen, "tradewar_tariffs", "Trade Tariffs", tariffs, "\n", setBy);
-        addEntry(screen, "tradewar_sanctions", "Trade Sanctions", sanctions, "§f, ", setBy);
-        addEntry(screen, "tradewar_embargoes", "Trade Embargoes", embargoes, "§f, ", setBy);
+        Map<String, Component> entries = new LinkedHashMap<>();
+        addEntry(entries, "tradewar_tariffs", "Trade Tariffs", tariffs, "\n", setBy);
+        addEntry(entries, "tradewar_sanctions", "Trade Sanctions", sanctions, "§f, ", setBy);
+        addEntry(entries, "tradewar_embargoes", "Trade Embargoes", embargoes, "§f, ", setBy);
+        insertAfter(screen, anchor, skipForeign, entries);
     }
 
-    private static void addEntry(StatusScreen screen, String key, String label, List<String> entries, String separator, String setBy) {
+    /**
+     * StatusScreen only supports appending, so the components after the insertion point are removed and re-added.
+     * With skipForeign, the insertion point moves past the components following the anchor on the same line
+     * (other plugins' hover entries) up to the next newline or Towny's extraFields.
+     */
+    private static void insertAfter(StatusScreen screen, String anchor, boolean skipForeign, Map<String, Component> entries) {
+        List<String> keys = new ArrayList<>(screen.getComponentKeys());
+        int index = keys.indexOf(anchor);
+        if (index < 0) {
+            screen.addComponentOf("tradewar_newline", Component.newline());
+            entries.forEach(screen::addComponentOf);
+            return;
+        }
+        index++;
+        if (skipForeign) {
+            while (index < keys.size() && !keys.get(index).equals("extraFields")
+                    && !Component.newline().equals(screen.getComponentOrNull(keys.get(index)))) {
+                index++;
+            }
+        }
+
+        Map<String, Component> tail = new LinkedHashMap<>();
+        for (String key : keys.subList(index, keys.size())) {
+            tail.put(key, screen.getComponentOrNull(key));
+            screen.removeStatusComponent(key);
+        }
+        entries.forEach(screen::addComponentOf);
+        tail.forEach(screen::addComponentOf);
+    }
+
+    private static void addEntry(Map<String, Component> out, String key, String label, List<String> entries, String separator, String setBy) {
         if (entries.isEmpty()) {
             return;
         }
@@ -91,7 +129,7 @@ public class StatusScreenListener implements Listener {
         }
         hover.append("\n§f").append(String.join(separator.equals("\n") ? "\n" : "§f" + separator, shown));
 
-        screen.addComponentOf(key, TownyFormatter.colourHoverKey(label),
-                HoverEvent.showText(TownyComponents.miniMessage(hover.toString())));
+        out.put(key, TownyComponents.miniMessage(TownyFormatter.colourHoverKey(label))
+                .hoverEvent(HoverEvent.showText(TownyComponents.miniMessage(hover.toString()))));
     }
 }
